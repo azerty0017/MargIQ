@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MargIQ — Analyse instantanée de vos marges et coûts</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --gold: #C9A84C;
+  --gold-light: #E8C97A;
+  --gold-dim: #7A6330;
+  --bg: #0A0A08;
+  --bg2: #111110;
+  --bg3: #1A1A18;
+  --surface: #1E1E1B;
+  --border: rgba(201,168,76,0.15);
+  --border-bright: rgba(201,168,76,0.4);
+  --text: #F0EDE4;
+  --text-muted: #7A7870;
+  --text-dim: #3A3A38;
+  --green: #4CAF7A;
+  --red: #E05555;
+  --amber: #E8A830;
+  --blue: #5B9BD5;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+}
+
+.screen { display: none; min-height: 100vh; position: relative; z-index: 1; }
+.screen.active { display: flex; flex-direction: column; }
+
+/* ── UPLOAD SCREEN ── */
+#screen-upload {
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+
+.logo-wrap { text-align: center; margin-bottom: 48px; }
+
+.logo {
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -2px;
+  background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 50%, var(--gold-dim) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-top: 10px;
+}
+
+.drop-zone {
+  border: 1.5px dashed var(--border-bright);
+  border-radius: 20px;
+  padding: 56px 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  background: var(--bg2);
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  max-width: 560px;
+}
+
+.drop-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 110%, rgba(201,168,76,0.07) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--gold);
+  background: var(--bg3);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 48px rgba(201,168,76,0.1);
+}
+
+.drop-zone.loading-zone {
+  border-color: var(--gold);
+  border-style: solid;
+  pointer-events: none;
+}
+
+.drop-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.drop-icon-big {
+  font-size: 40px;
+  margin-bottom: 16px;
+  display: block;
+  transition: transform 0.3s;
+}
+
+.drop-zone:hover .drop-icon-big { transform: scale(1.1); }
+
+.drop-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.drop-sub {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.drop-accepted {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 16px;
+  letter-spacing: 0.08em;
+}
+
+.file-queue {
+  margin-top: 24px;
+  width: 100%;
+  max-width: 560px;
+  display: none;
+}
+
+.file-queue.visible { display: flex; flex-direction: column; gap: 8px; }
+
+.file-item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.file-item-icon { font-size: 16px; }
+.file-item-name { flex: 1; color: var(--text); }
+.file-item-status { color: var(--green); }
+
+.upload-hint {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 20px;
+  letter-spacing: 0.05em;
+}
+
+/* ── LOADING SCREEN ── */
+#screen-loading {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px;
+}
+
+.loading-logo {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 52px;
+}
+
+.magic-orb {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 48px;
+  position: relative;
+}
+
+.magic-orb::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201,168,76,0.4) 0%, rgba(201,168,76,0.1) 40%, transparent 70%);
+  animation: pulse-orb 2s ease-in-out infinite;
+}
+
+.magic-orb::after {
+  content: '✦';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  animation: spin-star 4s linear infinite;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@keyframes pulse-orb { 0%,100%{transform:scale(1);opacity:.7} 50%{transform:scale(1.15);opacity:1} }
+@keyframes spin-star { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+.loading-steps { list-style: none; text-align: left; max-width: 360px; margin: 0 auto 48px; }
+
+.loading-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--text-dim);
+  border-bottom: 1px solid rgba(58,58,56,0.5);
+  transition: all 0.4s ease;
+}
+
+.loading-step.done { color: var(--green); }
+.loading-step.active { color: var(--gold); }
+.step-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.loading-step.active .step-dot { animation: blink 0.8s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+
+.progress-bar-wrap { width: 100%; max-width: 360px; height: 2px; background: var(--text-dim); border-radius: 2px; overflow: hidden; margin: 0 auto; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, var(--gold-dim), var(--gold-light)); border-radius: 2px; width: 0%; transition: width 0.6s ease; }
+
+/* ── COCKPIT SCREEN ── */
+#screen-cockpit { padding: 32px 24px 80px; max-width: 900px; margin: 0 auto; width: 100%; }
+
+.cockpit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 36px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.cockpit-logo {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.header-right { display: flex; gap: 10px; align-items: center; }
+
+.btn-sm {
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  color: var(--gold);
+  border-radius: 8px;
+  padding: 7px 16px;
+  font-family: 'Syne', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-sm:hover { background: var(--border); }
+.btn-sm.primary { background: var(--gold); color: var(--bg); border-color: var(--gold); }
+.btn-sm.primary:hover { background: var(--gold-light); }
+
+/* Score hero */
+.score-hero {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px;
+  margin-bottom: 20px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 28px;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.score-hero::after {
+  content: '';
+  position: absolute;
+  top: -80px;
+  right: -80px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201,168,76,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.score-ring { width: 110px; height: 110px; position: relative; flex-shrink: 0; }
+.score-ring svg { transform: rotate(-90deg); }
+
+.score-number {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--gold-light);
+  line-height: 1;
+}
+
+.score-number span {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+.score-info h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+
+.score-info p {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.highlight { color: var(--green); font-weight: 500; }
+.highlight-red { color: var(--red); font-weight: 500; }
+
+/* Company strip */
+.company-strip {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.company-field { display: flex; flex-direction: column; gap: 3px; }
+.company-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.company-value { font-size: 13px; font-weight: 600; color: var(--text); }
+
+/* Stats row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 16px;
+}
+
+.stat-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.stat-value { font-size: 20px; font-weight: 700; line-height: 1; }
+.stat-value.pos { color: var(--green); }
+.stat-value.neg { color: var(--red); }
+.stat-value.warn { color: var(--amber); }
+.stat-value.info { color: var(--blue); }
+.stat-delta { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+
+/* Section title */
+.section-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Line items table */
+.lines-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.lines-table th {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--text-dim);
+}
+
+.lines-table td {
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(58,58,56,0.4);
+  vertical-align: top;
+}
+
+.lines-table tr:last-child td { border-bottom: none; }
+.lines-table tr:hover td { background: rgba(201,168,76,0.02); }
+
+.line-product { font-weight: 600; color: var(--text); }
+.line-meta { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+.line-anomaly-tag {
+  display: inline-block;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 5px;
+  margin-top: 5px;
+  line-height: 1.3;
+}
+
+.tag-red { background: rgba(224,85,85,0.12); color: var(--red); }
+.tag-amber { background: rgba(232,168,48,0.12); color: var(--amber); }
+.tag-green { background: rgba(76,175,122,0.12); color: var(--green); }
+.tag-blue { background: rgba(91,155,213,0.12); color: var(--blue); }
+.tag-none { background: rgba(122,120,112,0.1); color: var(--text-muted); }
+
+.line-explanation {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-top: 5px;
+  font-style: italic;
+}
+
+.line-reco {
+  font-size: 12px;
+  color: var(--text);
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border);
+  line-height: 1.5;
+}
+
+.line-reco-impact { color: var(--green); font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; }
+
+/* Anomaly summary */
+.anomaly-list { display: flex; flex-direction: column; gap: 8px; }
+
+.anomaly-item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  transition: border-color 0.2s;
+}
+
+.anomaly-item:hover { border-color: var(--border-bright); }
+
+.anomaly-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  padding: 4px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+  letter-spacing: 0.05em;
+}
+
+.anomaly-text { font-size: 13px; color: var(--text); line-height: 1.5; }
+.anomaly-amount { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.anomaly-explanation { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); margin-top: 5px; font-style: italic; line-height: 1.5; }
+
+/* Benchmark comparison */
+.bench-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 8px;
+}
+
+.bench-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.bench-product { font-size: 14px; font-weight: 600; }
+.bench-badge { font-family: 'DM Mono', monospace; font-size: 10px; padding: 3px 8px; border-radius: 5px; }
+
+.bench-bars { display: flex; flex-direction: column; gap: 7px; }
+.bench-row { display: flex; align-items: center; gap: 10px; }
+.bench-row-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted); width: 130px; flex-shrink: 0; }
+.bench-bar-wrap { flex: 1; height: 6px; background: var(--text-dim); border-radius: 3px; overflow: hidden; }
+.bench-bar { height: 100%; border-radius: 3px; }
+.bench-bar.your { background: var(--gold); }
+.bench-bar.sector { background: var(--blue); }
+.bench-bar.national { background: var(--text-muted); }
+.bench-row-val { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text); width: 80px; text-align: right; flex-shrink: 0; }
+
+/* Recommendations */
+.reco-list { display: flex; flex-direction: column; gap: 8px; }
+
+.reco-item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--gold);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.reco-num { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--gold-dim); font-weight: 500; flex-shrink: 0; padding-top: 2px; }
+.reco-text { font-size: 13px; color: var(--text); line-height: 1.5; }
+.reco-impact { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--green); margin-top: 4px; font-weight: 500; }
+
+/* DB stats */
+.db-banner {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.db-stat { display: flex; flex-direction: column; gap: 2px; }
+.db-stat-val { font-size: 18px; font-weight: 700; color: var(--gold); }
+.db-stat-label { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; }
+.db-divider { width: 1px; height: 32px; background: var(--border); }
+
+/* CTA row */
+.cta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 32px; }
+
+.btn-cta {
+  background: var(--gold);
+  color: var(--bg);
+  border: none;
+  border-radius: 10px;
+  padding: 13px 28px;
+  font-family: 'Syne', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-cta::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 60%);
+}
+
+.btn-cta:hover { background: var(--gold-light); box-shadow: 0 6px 28px rgba(201,168,76,0.3); transform: translateY(-1px); }
+
+.btn-cta-secondary {
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 13px 22px;
+  font-family: 'Syne', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cta-secondary:hover { background: var(--bg3); }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .score-hero { grid-template-columns: 1fr; text-align: center; }
+  .score-ring { margin: 0 auto; }
+  .lines-table { font-size: 12px; }
+  .bench-row-label { width: 80px; font-size: 9px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ SCREEN 1: UPLOAD ══════════════ -->
+<section id="screen-upload" class="screen active">
+  <div class="logo-wrap">
+    <div class="logo">MargIQ</div>
+    <div class="tagline">Analyse instantanée de vos marges et coûts</div>
+  </div>
+
+  <div class="drop-zone" id="drop-zone"
+    ondragover="handleDrag(event)"
+    ondragleave="handleDragLeave()"
+    ondrop="handleDrop(event)">
+    <input type="file" id="file-input" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png" multiple onchange="handleFileSelect(event)">
+    <span class="drop-icon-big">📄</span>
+    <div class="drop-label">Déposez vos factures ici</div>
+    <div class="drop-sub">Factures fournisseurs, devis clients, bons de commande<br>L'analyse démarre automatiquement</div>
+    <div class="drop-accepted">PDF · Excel · Image · Plusieurs fichiers acceptés</div>
+  </div>
+
+  <div class="file-queue" id="file-queue"></div>
+  <div class="upload-hint" id="upload-hint">Données traitées de façon sécurisée · Aucune donnée partagée sans consentement</div>
+</section>
+<!-- ══════════════ SCREEN 2: LOADING ══════════════ -->
+<section id="screen-loading" class="screen">
+  <div class="loading-logo">MargIQ</div>
+  <div class="magic-orb"></div>
+  <ul class="loading-steps" id="loading-steps">
+    <li class="loading-step" id="step-0"><span class="step-dot"></span>Lecture et extraction des documents</li>
+    <li class="loading-step" id="step-1"><span class="step-dot"></span>Identification entreprise &amp; fournisseurs</li>
+    <li class="loading-step" id="step-2"><span class="step-dot"></span>Analyse ligne par ligne des prix</li>
+    <li class="loading-step" id="step-3"><span class="step-dot"></span>Comparaison base de données interne</li>
+    <li class="loading-step" id="step-4"><span class="step-dot"></span>Benchmark sectoriel &amp; national</li>
+    <li class="loading-step" id="step-5"><span class="step-dot"></span>Génération des recommandations</li>
+  </ul>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+</section>
+<!-- ══════════════ SCREEN 3: COCKPIT ══════════════ -->
+<section id="screen-cockpit" class="screen">
+  <div class="cockpit-header">
+    <div class="cockpit-logo">MargIQ</div>
+    <div class="header-right">
+      <button class="btn-sm" onclick="showDbHistory()">📊 Base de données</button>
+      <button class="btn-sm" onclick="resetToUpload()">+ Nouvelle analyse</button>
+    </div>
+  </div>
+
+  <!-- DB stats banner -->
+  <div class="db-banner" id="db-banner"></div>
+
+  <!-- Company info -->
+  <div class="company-strip" id="company-strip"></div>
+
+  <!-- Score hero -->
+  <div class="score-hero">
+    <div class="score-ring">
+      <svg width="110" height="110" viewBox="0 0 110 110">
+        <circle cx="55" cy="55" r="46" fill="none" stroke="#1E1E1B" stroke-width="8"/>
+        <circle cx="55" cy="55" r="46" fill="none" stroke="url(#gg)" stroke-width="8"
+          stroke-dasharray="289" stroke-dashoffset="289" stroke-linecap="round" id="score-arc"/>
+        <defs>
+          <linearGradient id="gg" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#7A6330"/>
+            <stop offset="100%" stop-color="#E8C97A"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div class="score-number" id="score-number">—<span>/ 100</span></div>
+    </div>
+    <div class="score-info">
+      <h2 id="score-headline">—</h2>
+      <p id="score-summary">—</p>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="stats-row"></div>
+
+  <!-- Line items -->
+  <div class="section-title">Analyse par ligne de produit / service</div>
+  <div style="overflow-x:auto; margin-bottom: 20px;">
+    <table class="lines-table" id="lines-table">
+      <thead>
+        <tr>
+          <th>Produit / Service</th>
+          <th>Qté · Prix unit. · TVA</th>
+          <th>Total HT</th>
+          <th>Statut prix</th>
+          <th>Analyse &amp; Recommandation</th>
+        </tr>
+      </thead>
+      <tbody id="lines-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Benchmark visual -->
+  <div class="section-title">Benchmark de prix comparatif</div>
+  <div id="bench-container"></div>
+
+  <!-- Anomalies -->
+  <div class="section-title">Anomalies globales détectées</div>
+  <div class="anomaly-list" id="anomaly-list"></div>
+
+  <!-- Recommendations -->
+  <div class="section-title">Recommandations prioritaires</div>
+  <div class="reco-list" id="reco-list"></div>
+
+  <div class="cta-row">
+    <button class="btn-cta" onclick="exportReport()">↓ &nbsp;Exporter le rapport</button>
+    <button class="btn-cta-secondary" onclick="resetToUpload()">↺ &nbsp;Analyser d'autres factures</button>
+  </div>
+</section>
+<script>
+// ════════════════════════════════════════════
+// DATABASE — localStorage
+// Schéma: { companies: {}, transactions: [], products: {} }
+// ════════════════════════════════════════════
+
+const DB_KEY = 'margiq_db_v1';
+
+function loadDB() {
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    return raw ? JSON.parse(raw) : { companies: {}, transactions: [], products: {} };
+  } catch { return { companies: {}, transactions: [], products: {} }; }
+}
+
+function saveDB(db) {
+  try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch(e) { console.warn('DB save error', e); }
+}
+
+function storeAnalysisResult(result) {
+  const db = loadDB();
+  const now = new Date().toISOString();
+
+  // Store / update company
+  if (result.company && result.company.nom) {
+    const key = slugify(result.company.nom);
+    if (!db.companies[key]) db.companies[key] = { ...result.company, history: [] };
+    else db.companies[key] = { ...db.companies[key], ...result.company };
+    db.companies[key].lastSeen = now;
+  }
+
+  // Store / update supplier
+  if (result.supplier && result.supplier.nom) {
+    const key = 'SUP_' + slugify(result.supplier.nom);
+    if (!db.companies[key]) db.companies[key] = { ...result.supplier, type: 'fournisseur', history: [] };
+    else db.companies[key] = { ...db.companies[key], ...result.supplier };
+    db.companies[key].lastSeen = now;
+  }
+
+  // Store line items
+  if (result.lignes && result.lignes.length) {
+    result.lignes.forEach(ligne => {
+      if (!ligne.produit) return;
+      const pkey = slugify(ligne.produit);
+      if (!db.products[pkey]) db.products[pkey] = { nom: ligne.produit, secteur: result.company?.secteur || 'inconnu', prices: [] };
+      db.products[pkey].prices.push({
+        prix_unitaire: ligne.prix_unitaire,
+        quantite: ligne.quantite,
+        date: result.date_facture || now,
+        company: result.company?.nom || 'inconnu',
+        secteur: result.company?.secteur || 'inconnu'
+      });
+      // Keep last 200 price points per product
+      if (db.products[pkey].prices.length > 200) db.products[pkey].prices = db.products[pkey].prices.slice(-200);
+    });
+  }
+
+  // Store transaction
+  db.transactions.push({
+    date: now,
+    date_facture: result.date_facture,
+    company: result.company?.nom,
+    supplier: result.supplier?.nom,
+    secteur: result.company?.secteur,
+    total_ht: result.total_ht,
+    score: result.score,
+    nb_anomalies: result.anomalies?.length || 0,
+    gain_potentiel: result.gain_potentiel
+  });
+
+  // Keep last 500 transactions
+  if (db.transactions.length > 500) db.transactions = db.transactions.slice(-500);
+
+  saveDB(db);
+}
+
+function getHistoricalContext(companyName, sectorName) {
+  const db = loadDB();
+  const context = { same_company: [], same_sector: [], all_sector: [] };
+
+  // Same company history
+  if (companyName) {
+    const key = slugify(companyName);
+    if (db.companies[key]) {
+      context.same_company = db.transactions
+        .filter(t => t.company && slugify(t.company) === key)
+        .slice(-10);
+    }
+  }
+
+  // Same sector
+  if (sectorName) {
+    context.same_sector = db.transactions
+      .filter(t => t.secteur && t.secteur.toLowerCase().includes(sectorName.toLowerCase()))
+      .slice(-20);
+  }
+
+  // Product benchmarks
+  context.product_benchmarks = {};
+  Object.entries(db.products).forEach(([key, prod]) => {
+    if (prod.prices.length > 1) {
+      const vals = prod.prices.map(p => p.prix_unitaire).filter(Boolean);
+      context.product_benchmarks[prod.nom] = {
+        min: Math.min(...vals),
+        max: Math.max(...vals),
+        avg: vals.reduce((a,b) => a+b, 0) / vals.length,
+        count: vals.length,
+        secteurs: [...new Set(prod.prices.map(p => p.secteur))]
+      };
+    }
+  });
+
+  context.total_transactions = db.transactions.length;
+  context.total_companies = Object.keys(db.companies).length;
+  context.total_products = Object.keys(db.products).length;
+
+  return context;
+}
+
+function slugify(str) {
+  return str.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+}
+
+function getDBStats() {
+  const db = loadDB();
+  return {
+    transactions: db.transactions.length,
+    companies: Object.keys(db.companies).length,
+    products: Object.keys(db.products).length
+  };
+}
+
+// ════════════════════════════════════════════
+// FILE HANDLING
+// ════════════════════════════════════════════
+
+let selectedFiles = [];
+let analysisResult = null;
+
+function handleDrag(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.add('drag-over');
+}
+
+function handleDragLeave() {
+  document.getElementById('drop-zone').classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer.files);
+  if (files.length) processFiles(files);
+}
+
+function handleFileSelect(e) {
+  const files = Array.from(e.target.files);
+  if (files.length) processFiles(files);
+}
+
+function processFiles(files) {
+  selectedFiles = files;
+  const queue = document.getElementById('file-queue');
+  queue.classList.add('visible');
+  queue.innerHTML = files.map(f =>
+    `<div class="file-item">
+      <span class="file-item-icon">${f.type.includes('pdf') ? '📄' : f.type.includes('image') ? '🖼️' : '📊'}</span>
+      <span class="file-item-name">${f.name}</span>
+      <span class="file-item-status">En attente...</span>
+    </div>`
+  ).join('');
+
+  document.getElementById('drop-zone').classList.add('loading-zone');
+  document.getElementById('upload-hint').textContent = 'Analyse en cours...';
+
+  setTimeout(() => startAnalysis(), 400);
+}
+
+// ════════════════════════════════════════════
+// ANALYSIS
+// ════════════════════════════════════════════
+
+async function startAnalysis() {
+  showScreen('screen-loading');
+  await runLoadingAnimation();
+  await callGeminiAPI();
+  if (analysisResult) {
+    storeAnalysisResult(analysisResult);
+    renderCockpit();
+    showScreen('screen-cockpit');
+    setTimeout(animateScoreArc, 200);
+  }
+}
+
+async function runLoadingAnimation() {
+  const steps = document.querySelectorAll('.loading-step');
+  const bar = document.getElementById('progress-bar');
+  const delays = [700, 600, 800, 500, 700, 600];
+  for (let i = 0; i < steps.length; i++) {
+    steps[i].classList.add('active');
+    bar.style.width = Math.round((i + 1) / steps.length * 92) + '%';
+    await sleep(delays[i]);
+    steps[i].classList.remove('active');
+    steps[i].classList.add('done');
+  }
+  bar.style.width = '100%';
+  await sleep(300);
+}
+
+async function callGeminiAPI() {
+  try {
+    // Convert files to base64
+    const fileContents = await Promise.all(selectedFiles.map(async f => {
+      const b64 = await fileToBase64(f);
+      return { name: f.name, type: f.type, data: b64 };
+    }));
+
+    // Get historical context (we'll pass a summary)
+    // We do a 2-step approach:
+    // Step 1: extract company name from docs to get context
+    // Step 2: full analysis with context
+
+    // Build message content
+    const msgContent = [];
+    fileContents.forEach(fc => {
+      if (fc.type.includes('pdf')) {
+        msgContent.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: fc.data } });
+      } else if (fc.type.includes('image')) {
+        msgContent.push({ type: 'image', source: { type: 'base64', media_type: fc.type, data: fc.data } });
+      }
+      // For Excel/CSV, we just reference by name for now
+    });
+
+    // Get DB context
+    const dbStats = getDBStats();
+    const histCtx = getHistoricalContext('', '');
+
+    const systemPrompt = `Tu es MargIQ, un moteur d'analyse financière de précision pour PME et entreprises.
+Tu analyses des factures, devis, bons de commande et extrais toutes les données structurées, puis fournis un diagnostic de marge actionnable.
+
+BASE DE DONNÉES ACTUELLE: ${dbStats.transactions} transactions enregistrées, ${dbStats.companies} entreprises, ${dbStats.products} produits trackés.
+
+BENCHMARKS PRODUITS CONNUS:
+${Object.keys(histCtx.product_benchmarks).length > 0 ? JSON.stringify(histCtx.product_benchmarks, null, 1) : 'Aucun encore — utilise tes connaissances du marché algérien et régional.'}
+
+HISTORIQUE TRANSACTIONS RÉCENTES:
+${histCtx.total_transactions > 0 ? JSON.stringify(histCtx.same_sector.slice(0,5)) : 'Première utilisation — pas d\'historique disponible.'}
+
+INSTRUCTIONS:
+1. Extrait TOUTES les données de la facture ligne par ligne
+2. Pour chaque ligne produit/service, évalue si le prix est conforme au marché (utilise tes connaissances + les benchmarks fournis)
+3. Si le prix semble anormal, explique POURQUOI (quantité réduite, qualité supérieure, flambée des prix, fournisseur premium, etc.)
+4. Compare à 3 niveaux: même entreprise (historique), secteur, national
+5. Sois précis sur les écarts en pourcentage par ligne
+
+Réponds UNIQUEMENT en JSON valide, sans backticks, avec cette structure:
+{
+  "company": {
+    "nom": "...",
+    "adresse": "...",
+    "rc": "...",
+    "nif": "...",
+    "secteur": "...",
+    "tel": "...",
+    "email": "..."
+  },
+  "supplier": {
+    "nom": "...",
+    "adresse": "...",
+    "rc": "...",
+    "nif": "...",
+    "secteur": "..."
+  },
+  "date_facture": "YYYY-MM-DD",
+  "numero_facture": "...",
+  "devise": "DA",
+  "total_ht": 0,
+  "total_tva": 0,
+  "total_ttc": 0,
+  "remise_globale": 0,
+  "score": 0,
+  "marge_actuelle_pct": "...",
+  "marge_marche_pct": "...",
+  "gain_potentiel": "...",
+  "headline": "...",
+  "summary": "...",
+  "lignes": [
+    {
+      "produit": "...",
+      "description": "...",
+      "quantite": 0,
+      "unite": "...",
+      "prix_unitaire": 0,
+      "tva_pct": 0,
+      "remise_pct": 0,
+      "total_ht": 0,
+      "statut_prix": "conforme" | "sur-facturation" | "sous-facturation" | "opportunite" | "a-verifier",
+      "ecart_pct": 0,
+      "prix_marche_estime": 0,
+      "explication": "...",
+      "recommandation": "...",
+      "impact_estime": "..."
+    }
+  ],
+  "benchmark": [
+    {
+      "produit": "...",
+      "ton_prix": 0,
+      "prix_secteur": 0,
+      "prix_national": 0,
+      "source_estimation": "..."
+    }
+  ],
+  "anomalies": [
+    {
+      "type": "SOUS-FACTURATION" | "SUR-COÛT" | "ÉCART PRIX" | "OPPORTUNITÉ" | "REMISE EXCESSIVE",
+      "severity": "critical" | "warning" | "info",
+      "produit_concerne": "...",
+      "text": "...",
+      "explication": "...",
+      "amount": "..."
+    }
+  ],
+  "recommandations": [
+    {
+      "priorite": 1,
+      "action": "...",
+      "impact": "..."
+    }
+  ],
+  "infos_supplementaires": {}
+}
+
+Sois rigoureux. Si une donnée est absente du document, mets null. Ne fabrique jamais de montants précis sans base — utilise des estimations clairement marquées.`;
+
+    msgContent.push({
+      type: 'text',
+      text: `Analyse ces documents et fournis le JSON complet. Extrais toutes les informations disponibles. Pour les champs manquants, mets null.`
+    });
+
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: msgContent }]
+      })
+    });
+
+    const data = await response.json();
+
+    // Si le serveur retourne une erreur explicite
+    if (data.error) {
+      showError('Erreur API : ' + (data.message || JSON.stringify(data)));
+      return;
+    }
+
+    const text = data.content.map(c => c.text || '').join('');
+    if (!text) {
+      showError('Réponse vide reçue du serveur. Vérifiez les logs Render.');
+      return;
+    }
+
+    const clean = text.replace(/```json|```/g, '').trim();
+    analysisResult = JSON.parse(clean);
+
+  } catch (err) {
+    console.error('Erreur:', err);
+    showError('Erreur : ' + err.message);
+  }
+}
+
+function showError(msg) {
+  showScreen('screen-upload');
+  document.getElementById('drop-zone').classList.remove('loading-zone');
+  const hint = document.getElementById('upload-hint');
+  hint.style.color = '#E05555';
+  hint.style.fontSize = '13px';
+  hint.textContent = '⚠ ' + msg;
+  console.error('MargIQ Error:', msg);
+}
+
+function getDemoResult() {
+  return {
+    company: { nom: "SARL BTP Oran Construction", adresse: "Zone industrielle Arzew, Oran", rc: "16/00-B-0012345", nif: "001623456789012", secteur: "BTP", tel: "041 XX XX XX", email: "contact@btporan.dz" },
+    supplier: { nom: "Groupe ENIE Matériaux", adresse: "Sidi Bel Abbès, Algérie", rc: "22/00-B-0098765", nif: "002298765432109", secteur: "Négoce matériaux" },
+    date_facture: "2026-04-15", numero_facture: "F-2026-0412", devise: "DA",
+    total_ht: 1240000, total_tva: 235600, total_ttc: 1475600, remise_globale: 0,
+    score: 54,
+    marge_actuelle_pct: "19%", marge_marche_pct: "34%", gain_potentiel: "185 000 DA",
+    headline: "Marge fortement sous-optimisée — 3 anomalies critiques détectées",
+    summary: "4 lignes sur 5 présentent des écarts de prix significatifs. Votre fournisseur principal surfacture le fer à béton de 18% par rapport aux prix sectoriels.",
+    lignes: [
+      { produit: "Barre de fer HA 12mm", description: "Acier à haute adhérence Ø12", quantite: 5, unite: "tonne", prix_unitaire: 98000, tva_pct: 19, remise_pct: 0, total_ht: 490000, statut_prix: "sur-facturation", ecart_pct: 18, prix_marche_estime: 83000, explication: "Le prix de 98 000 DA/tonne dépasse de 18% la moyenne sectorielle (83 000 DA). Cet écart n'est pas justifié par la quantité (5T est une commande standard). Possible flambée localisée ou marge fournisseur excessive.", recommandation: "Consulter 2 fournisseurs alternatifs (Tosyali Algérie, Arcelor distribs locaux). La quantité commande vous donne un levier de négociation.", impact_estime: "-75 000 DA sur cette commande" },
+      { produit: "Ciment CPJ 42.5", description: "Sacs 50kg, ECDE Zahana", quantite: 300, unite: "sac", prix_unitaire: 620, tva_pct: 9, remise_pct: 2, total_ht: 182000, statut_prix: "conforme", ecart_pct: 2, prix_marche_estime: 608, explication: "Prix conforme au marché régional. L'écart de 2% est dans la marge normale des fluctuations de transport.", recommandation: "Aucune action requise. Maintenir ce fournisseur.", impact_estime: null },
+      { produit: "Sable de carrière 0/3", description: "Sable fin lavé, m³", quantite: 80, unite: "m³", prix_unitaire: 2800, tva_pct: 9, remise_pct: 0, total_ht: 224000, statut_prix: "sur-facturation", ecart_pct: 25, prix_marche_estime: 2240, explication: "Prix 25% au-dessus du marché. Pour 80m³, la distance de transport seule ne justifie pas cet écart. Suspicion de marge fournisseur non négociée.", recommandation: "Négocier sur volume ou identifier carrière alternative dans un rayon de 40km.", impact_estime: "-44 800 DA sur cette commande" },
+      { produit: "Gravier 8/15", description: "Granulats concassés", quantite: 60, unite: "m³", prix_unitaire: 3200, tva_pct: 9, remise_pct: 0, total_ht: 192000, statut_prix: "a-verifier", ecart_pct: 8, prix_marche_estime: 2960, explication: "Léger sur-prix de 8%. Peut être justifié par la qualité granulométrique si spécifiée pour béton structurel. À confirmer avec le cahier des charges.", recommandation: "Vérifier si la spécification technique justifie ce tarif. Si non, négocier en lot avec le sable.", impact_estime: "-14 400 DA potentiels" },
+      { produit: "Coffrage métallique 50m²", description: "Location panneau coffreur", quantite: 50, unite: "m²", prix_unitaire: 3040, tva_pct: 19, remise_pct: 0, total_ht: 152000, statut_prix: "opportunite", ecart_pct: -12, prix_marche_estime: 3460, explication: "Prix 12% sous le marché — opportunité d'achat intéressante. La qualité du prestataire est déterminante ici.", recommandation: "Conserver ce fournisseur pour le coffrage. Prix compétitif sur ce marché.", impact_estime: "+20 000 DA d'économie vs marché" }
+    ],
+    benchmark: [
+      { produit: "Barre de fer HA 12mm", ton_prix: 98000, prix_secteur: 83000, prix_national: 86000, source_estimation: "Prix Tosyali + Arcelor Mittal Algérie T1 2026" },
+      { produit: "Sable de carrière 0/3", ton_prix: 2800, prix_secteur: 2240, prix_national: 2150, source_estimation: "Fédération des matériaux de construction Algérie, estimations régionales Oran" },
+      { produit: "Coffrage métallique", ton_prix: 3040, prix_secteur: 3460, prix_national: 3200, source_estimation: "Marché location outillage BTP Algérie" }
+    ],
+    anomalies: [
+      { type: "SUR-COÛT", severity: "critical", produit_concerne: "Barre de fer HA 12mm", text: "Fer à béton facturé à 98 000 DA/T — 18% au-dessus du prix marché sectoriel", explication: "L'acier représente 39% de cette facture. Un surpayement de 18% sur ce poste génère un manque à gagner direct de 75 000 DA sur cette commande seule.", amount: "−75 000 DA" },
+      { type: "SUR-COÛT", severity: "critical", produit_concerne: "Sable de carrière 0/3", text: "Sable facturé 25% au-dessus des prix de carrière régionaux", explication: "Aucun facteur de qualité ou de distance ne justifie cet écart sur un agrégat standard. Probable marge intermédiaire non négociée.", amount: "−44 800 DA" },
+      { type: "OPPORTUNITÉ", severity: "info", produit_concerne: "Coffrage métallique", text: "Tarif location coffrage 12% sous le marché — fournisseur à fidéliser", explication: "Économie passée inaperçue. Ce fournisseur peut être utilisé comme levier pour négocier les autres postes.", amount: "+20 000 DA d'économie" }
+    ],
+    recommandations: [
+      { priorite: 1, action: "Renégocier immédiatement le contrat fer à béton avec votre fournisseur actuel ou solliciter Tosyali Algérie en direct. L'argument: 5T/commande est un volume négociable.", impact: "Économie potentielle: 75 000 DA sur cette commande, 900 000 DA/an si volume annuel ×12" },
+      { priorite: 2, action: "Identifier une carrière de sable dans un rayon de 40km d'Oran. Le marché des agrégats est très local — la distance est le principal levier de prix.", impact: "−44 800 DA par commande de cette taille" },
+      { priorite: 3, action: "Regrouper les achats granulats (sable + gravier) dans un lot unique pour créer du volume et réduire les marges intermédiaires.", impact: "Estimation −10 à 15% sur les deux postes combinés" }
+    ],
+    infos_supplementaires: { mode_paiement: "Virement bancaire 30 jours", incoterms: "DAP chantier", garantie: null }
+  };
+}
+
+// ════════════════════════════════════════════
+// RENDER COCKPIT
+// ════════════════════════════════════════════
+
+function renderCockpit() {
+  const r = analysisResult;
+  const dbStats = getDBStats();
+
+  // DB banner
+  document.getElementById('db-banner').innerHTML = `
+    <div class="db-stat"><div class="db-stat-val">${dbStats.transactions}</div><div class="db-stat-label">Transactions</div></div>
+    <div class="db-divider"></div>
+    <div class="db-stat"><div class="db-stat-val">${dbStats.companies}</div><div class="db-stat-label">Entreprises</div></div>
+    <div class="db-divider"></div>
+    <div class="db-stat"><div class="db-stat-val">${dbStats.products}</div><div class="db-stat-label">Produits trackés</div></div>
+    <div class="db-divider"></div>
+    <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);flex:1">
+      Cette facture a été enregistrée dans la base MargIQ — elle enrichit les futurs benchmarks.
+    </div>`;
+
+  // Company strip
+  const co = r.company || {};
+  const sup = r.supplier || {};
+  document.getElementById('company-strip').innerHTML = `
+    <div class="company-field">
+      <div class="company-label">Entreprise cliente</div>
+      <div class="company-value">${co.nom || '—'}</div>
+    </div>
+    <div class="company-field">
+      <div class="company-label">Secteur</div>
+      <div class="company-value">${co.secteur || '—'}</div>
+    </div>
+    <div class="company-field">
+      <div class="company-label">Fournisseur</div>
+      <div class="company-value">${sup.nom || '—'}</div>
+    </div>
+    <div class="company-field">
+      <div class="company-label">Facture N°</div>
+      <div class="company-value">${r.numero_facture || '—'}</div>
+    </div>
+    <div class="company-field">
+      <div class="company-label">Date</div>
+      <div class="company-value">${r.date_facture || '—'}</div>
+    </div>
+    <div class="company-field">
+      <div class="company-label">Total TTC</div>
+      <div class="company-value">${r.total_ttc ? r.total_ttc.toLocaleString('fr-DZ') + ' ' + (r.devise || 'DA') : '—'}</div>
+    </div>`;
+
+  // Score
+  document.getElementById('score-number').innerHTML = `${r.score}<span>/ 100</span>`;
+  document.getElementById('score-headline').textContent = r.headline || '—';
+  document.getElementById('score-summary').innerHTML = r.summary || '—';
+
+  // Stats
+  const criticals = (r.anomalies || []).filter(a => a.severity === 'critical').length;
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Marge actuelle</div>
+      <div class="stat-value warn">${r.marge_actuelle_pct || '—'}</div>
+      <div class="stat-delta">marché estimé: ${r.marge_marche_pct || '—'}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Gain potentiel</div>
+      <div class="stat-value pos">${r.gain_potentiel || '—'}</div>
+      <div class="stat-delta">si anomalies corrigées</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Anomalies critiques</div>
+      <div class="stat-value neg">${criticals}</div>
+      <div class="stat-delta">sur ${(r.anomalies || []).length} total détectées</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Lignes analysées</div>
+      <div class="stat-value info">${(r.lignes || []).length}</div>
+      <div class="stat-delta">produits / services</div>
+    </div>`;
+
+  // Line items table
+  const tbody = document.getElementById('lines-tbody');
+  tbody.innerHTML = '';
+  (r.lignes || []).forEach(ligne => {
+    const tagClass = {
+      'conforme': 'tag-green', 'sur-facturation': 'tag-red',
+      'sous-facturation': 'tag-amber', 'opportunite': 'tag-blue', 'a-verifier': 'tag-none'
+    }[ligne.statut_prix] || 'tag-none';
+
+    const tagLabel = {
+      'conforme': '✓ Conforme', 'sur-facturation': '↑ Sur-facturation',
+      'sous-facturation': '↓ Sous-facturation', 'opportunite': '★ Opportunité', 'a-verifier': '? À vérifier'
+    }[ligne.statut_prix] || ligne.statut_prix;
+
+    tbody.innerHTML += `
+      <tr>
+        <td>
+          <div class="line-product">${ligne.produit || '—'}</div>
+          <div class="line-meta">${ligne.description || ''}</div>
+        </td>
+        <td>
+          <div class="line-meta">${ligne.quantite || 0} ${ligne.unite || ''}</div>
+          <div class="line-meta">${(ligne.prix_unitaire || 0).toLocaleString('fr-DZ')} DA/u</div>
+          <div class="line-meta">TVA ${ligne.tva_pct || 0}% ${ligne.remise_pct ? '· Remise ' + ligne.remise_pct + '%' : ''}</div>
+        </td>
+        <td>
+          <div style="font-weight:600">${(ligne.total_ht || 0).toLocaleString('fr-DZ')} DA</div>
+          ${ligne.ecart_pct && ligne.ecart_pct !== 0 ? `<div class="line-meta" style="color:${ligne.ecart_pct > 0 ? 'var(--red)' : 'var(--green)'}">
+            ${ligne.ecart_pct > 0 ? '+' : ''}${ligne.ecart_pct}% vs marché<br>
+            Marché: ${(ligne.prix_marche_estime || 0).toLocaleString('fr-DZ')} DA/u
+          </div>` : ''}
+        </td>
+        <td><span class="line-anomaly-tag ${tagClass}">${tagLabel}</span></td>
+        <td>
+          ${ligne.explication ? `<div class="line-explanation">${ligne.explication}</div>` : ''}
+          ${ligne.recommandation ? `<div class="line-reco">${ligne.recommandation}${ligne.impact_estime ? `<div class="line-reco-impact">${ligne.impact_estime}</div>` : ''}</div>` : ''}
+        </td>
+      </tr>`;
+  });
+
+  // Benchmark bars
+  const benchContainer = document.getElementById('bench-container');
+  benchContainer.innerHTML = '';
+  (r.benchmark || []).forEach(b => {
+    const maxVal = Math.max(b.ton_prix || 0, b.prix_secteur || 0, b.prix_national || 0, 1);
+    const w1 = Math.round((b.ton_prix / maxVal) * 100);
+    const w2 = Math.round((b.prix_secteur / maxVal) * 100);
+    const w3 = Math.round((b.prix_national / maxVal) * 100);
+    const tag = b.ton_prix > b.prix_secteur * 1.05 ? ['tag-red', '↑ Sur-prix'] : b.ton_prix < b.prix_secteur * 0.95 ? ['tag-blue', '↓ Sous-prix'] : ['tag-green', '✓ Conforme'];
+
+    benchContainer.innerHTML += `
+      <div class="bench-card">
+        <div class="bench-header">
+          <div class="bench-product">${b.produit}</div>
+          <span class="bench-badge ${tag[0]}">${tag[1]}</span>
+        </div>
+        <div class="bench-bars">
+          <div class="bench-row">
+            <div class="bench-row-label">Votre prix</div>
+            <div class="bench-bar-wrap"><div class="bench-bar your" style="width:${w1}%"></div></div>
+            <div class="bench-row-val">${(b.ton_prix || 0).toLocaleString('fr-DZ')} DA</div>
+          </div>
+          <div class="bench-row">
+            <div class="bench-row-label">Secteur</div>
+            <div class="bench-bar-wrap"><div class="bench-bar sector" style="width:${w2}%"></div></div>
+            <div class="bench-row-val">${(b.prix_secteur || 0).toLocaleString('fr-DZ')} DA</div>
+          </div>
+          <div class="bench-row">
+            <div class="bench-row-label">National</div>
+            <div class="bench-bar-wrap"><div class="bench-bar national" style="width:${w3}%"></div></div>
+            <div class="bench-row-val">${(b.prix_national || 0).toLocaleString('fr-DZ')} DA</div>
+          </div>
+        </div>
+        ${b.source_estimation ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);margin-top:10px">Source: ${b.source_estimation}</div>` : ''}
+      </div>`;
+  });
+
+  // Anomalies
+  const anomalyList = document.getElementById('anomaly-list');
+  anomalyList.innerHTML = '';
+  (r.anomalies || []).forEach(a => {
+    const badgeClass = a.severity === 'critical' ? 'tag-red' : a.severity === 'warning' ? 'tag-amber' : 'tag-blue';
+    anomalyList.innerHTML += `
+      <div class="anomaly-item">
+        <div>
+          <span class="anomaly-badge ${badgeClass}">${a.type}</span>
+          ${a.produit_concerne ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);margin-top:4px">${a.produit_concerne}</div>` : ''}
+        </div>
+        <div style="flex:1">
+          <div class="anomaly-text">${a.text}</div>
+          ${a.explication ? `<div class="anomaly-explanation">${a.explication}</div>` : ''}
+          ${a.amount ? `<div class="anomaly-amount">${a.amount}</div>` : ''}
+        </div>
+      </div>`;
+  });
+
+  // Recommendations
+  const recoList = document.getElementById('reco-list');
+  recoList.innerHTML = '';
+  (r.recommandations || []).forEach((rec, i) => {
+    recoList.innerHTML += `
+      <div class="reco-item">
+        <div class="reco-num">0${rec.priorite || i+1}</div>
+        <div>
+          <div class="reco-text">${rec.action}</div>
+          ${rec.impact ? `<div class="reco-impact">↑ ${rec.impact}</div>` : ''}
+        </div>
+      </div>`;
+  });
+}
+
+function animateScoreArc() {
+  const score = analysisResult?.score || 0;
+  const arc = document.getElementById('score-arc');
+  const offset = 289 - (score / 100) * 289;
+  arc.style.transition = 'none';
+  arc.style.strokeDashoffset = '289';
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      arc.style.transition = 'stroke-dashoffset 1.4s cubic-bezier(0.4, 0, 0.2, 1)';
+      arc.style.strokeDashoffset = offset;
+    }, 50);
+  });
+}
+
+// ════════════════════════════════════════════
+// UTILITIES
+// ════════════════════════════════════════════
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function resetToUpload() {
+  selectedFiles = [];
+  analysisResult = null;
+  document.getElementById('file-input').value = '';
+  document.getElementById('file-queue').classList.remove('visible');
+  document.getElementById('file-queue').innerHTML = '';
+  document.getElementById('drop-zone').classList.remove('loading-zone', 'drag-over');
+  document.getElementById('upload-hint').textContent = 'Données traitées de façon sécurisée · Aucune donnée partagée sans consentement';
+  document.querySelectorAll('.loading-step').forEach(s => s.classList.remove('done', 'active'));
+  document.getElementById('progress-bar').style.width = '0%';
+  showScreen('screen-upload');
+}
+
+function showDbHistory() {
+  const db = loadDB();
+  const stats = getDBStats();
+  const recentTx = db.transactions.slice(-5).reverse();
+  alert(`BASE DE DONNÉES MargIQ\n\n📊 ${stats.transactions} transactions\n🏢 ${stats.companies} entreprises\n📦 ${stats.products} produits trackés\n\nDernières analyses:\n${recentTx.map(t => `• ${t.date?.slice(0,10)} — ${t.company || 'N/A'} — Score: ${t.score}`).join('\n')}`);
+}
+
+function exportReport() {
+  if (!analysisResult) return;
+  const json = JSON.stringify(analysisResult, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `margiq_rapport_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
